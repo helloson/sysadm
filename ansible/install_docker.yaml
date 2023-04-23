@@ -1,0 +1,70 @@
+# Плейбук проверяет, установлен ли docker и если нет, то ставит его,
+# а так же добавляет пользователя в группу docker. Пример запуска:
+#
+# ansible-playbook -i inventory install_docker.yaml
+---
+- hosts: server
+
+  tasks:
+### Проверяем, установлен ли docker ###
+  - name: Gather the package facts
+    ansible.builtin.package_facts:
+      manager: auto
+
+  - name: Check is docker installed?
+    ansible.builtin.debug:
+      msg: "Docker is installed! Next steps will be skipped"
+    when: "'docker' in ansible_facts.packages"
+
+### Устанавливаем docker ###
+  - name: Update and upgrade apt packages
+    become: true
+    apt:
+      update_cache: yes
+      cache_valid_time: 86400
+    when: "'docker' not in ansible_facts.packages"
+
+  - name:  Install a few prerequisite packages which let apt use packages over HTTPS
+    become: true
+    apt:
+     name: 
+      - software-properties-common
+      - apt-transport-https
+      - ca-certificates
+      - gnupg
+      - curl
+     update_cache: yes
+    when: "'docker' not in ansible_facts.packages"
+
+  - name: Make directory for GPG-key and add GPG Key
+    become: true
+    ansible.builtin.shell: |
+      sudo mkdir -m 0755 -p /etc/apt/keyrings
+      curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --batch --yes --dearmor -o /etc/apt/keyrings/docker.gpg
+    when: "'docker' not in ansible_facts.packages"
+
+
+  - name: Add Docker Repository
+    become: true
+    ansible.builtin.shell: |
+       echo "deb [arch="$(dpkg --print-architecture)" signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+       "$(. /etc/os-release && echo "$VERSION_CODENAME")" stable" | \
+       sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+    when: "'docker' not in ansible_facts.packages"
+
+  - name: Install docker 
+    become: true
+    apt:
+      name: 
+        - docker-ce
+        - docker-ce-cli
+        - containerd.io
+        - docker-buildx-plugin
+        - docker-compose-plugin
+      update_cache: yes
+    when: "'docker' not in ansible_facts.packages"
+
+  - name: Add user to docker group
+    become: true
+    ansible.builtin.shell: "sudo usermod -a -G docker {{ ansible_env.USER }}"
+    when: "'docker' not in ansible_facts.packages"
