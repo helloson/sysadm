@@ -17,7 +17,7 @@
     when: "'docker' in ansible_facts.packages"
 
 ### Устанавливаем docker ###
-  - name: Update and upgrade apt packages
+  - name: Update apt packages
     become: true
     apt:
       update_cache: yes
